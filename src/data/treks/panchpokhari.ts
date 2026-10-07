@@ -49,5 +49,39 @@ export const panchPokhari: Trek = {
   dataSource: 'OpenStreetMap contributors, SRTM DEM (NASA/USGS)',
   isVerified: true,
   isDemoData: false,
-
+  dataState: 'loaded',
+  waypoints: [
+    { id: 'chautara', name: 'Chautara (District HQ)', lat: 27.7850, lng: 85.7180, elevation: 1450, type: 'start', distanceFromStart: 0 },
+    { id: 'syaule', name: 'Syaule', lat: 27.8150, lng: 85.7250, elevation: 1850, type: 'village', distanceFromStart: 8 },
+    { id: 'kamikharka', name: 'Kamikharka', lat: 27.8520, lng: 85.7380, elevation: 2535, type: 'camp', distanceFromStart: 18 },
+    { id: 'chyochyo-danda', name: 'Chyochyo Danda', lat: 27.8920, lng: 85.7480, elevation: 3160, type: 'viewpoint', distanceFromStart: 28 },
+    { id: 'haveli', name: 'Haveli (Hille Bhanjyang)', lat: 27.9150, lng: 85.7520, elevation: 3720, type: 'camp', distanceFromStart: 38 },
+    { id: 'nasimpati', name: 'Nasimpati', lat: 27.9380, lng: 85.7580, elevation: 3860, type: 'camp', distanceFromStart: 46 },
+    { id: 'panch-pokhari', name: 'Panch Pokhari (5 Holy Lakes)', lat: 27.9620, lng: 85.7680, elevation: 4100, type: 'finish', distanceFromStart: 54 },
+  ],
+  routeGeoJSON: {
+    type: 'Feature',
+    properties: { id: 'pp', name: 'Panch Pokhari Trail' },
+    geometry: {
+      type: 'LineString',
+      coordinates: [
+        [85.7180, 27.7850],
+        [85.7250, 27.8150],
+        [85.7380, 27.8520],
+        [85.7480, 27.8920],
+        [85.7520, 27.9150],
+        [85.7580, 27.9380],
+        [85.7680, 27.9620],
+      ],
+    },
+  },
+  elevationProfile: [
+    { distance: 0, elevation: 1450, waypointId: 'chautara' },
+    { distance: 8, elevation: 1850, waypointId: 'syaule' },
+    { distance: 18, elevation: 2535, waypointId: 'kamikharka' },
+    { distance: 28, elevation: 3160, waypointId: 'chyochyo-danda' },
+    { distance: 38, elevation: 3720, waypointId: 'haveli' },
+    { distance: 46, elevation: 3860, waypointId: 'nasimpati' },
+    { distance: 54, elevation: 4100, waypointId: 'panch-pokhari' },
+  ],
 };

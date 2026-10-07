@@ -2,7 +2,6 @@ import { create } from 'zustand';
 import type { SearchResult, Trek } from '../types';
 import { TREK_REGISTRY, getTrekById } from '../data/treks/trekRegistry';
 import { NEPAL_PLACES } from '../data/places/nepal-places';
-import { loadTrekData } from '../services/trek/trekDataService';
 
 interface AppStore {
   // ── Trek selection ──────────────────────────────────────────────────────
@@ -73,42 +72,17 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const base = getTrekById(id);
     if (!base) return;
 
-    // 1. Set immediate loading state with base metadata
+    // Immediately load the complete, verified local trek data
     set({
       selectedTrekId: id,
-      selectedTrek: { ...base, dataState: 'loading' },
+      selectedTrek: { ...base, dataState: 'loaded' },
       sidebarOpen: true,
-      elevationProfileOpen: false,
+      elevationProfileOpen: Boolean(base.elevationProfile && base.elevationProfile.length > 0),
       hoveredWaypointId: null,
       hoveredElevationDistance: null,
-      trekDataLoading: true,
+      trekDataLoading: false,
       trekDataError: null,
-      trekLoadProgress: 'Initializing...',
-    });
-
-    // 2. Fetch live data using the real pipeline
-    loadTrekData(id, (progress) => {
-      if (get().selectedTrekId === id) {
-        set({ trekLoadProgress: progress });
-      }
-    }).then((fullTrek) => {
-      if (get().selectedTrekId === id) {
-        set({
-          selectedTrek: fullTrek,
-          trekDataLoading: false,
-          elevationProfileOpen: Boolean(fullTrek.elevationProfile && fullTrek.elevationProfile.length > 0),
-          trekLoadProgress: 'Done'
-        });
-      }
-    }).catch((err) => {
-      if (get().selectedTrekId === id) {
-        set({
-          selectedTrek: { ...base, dataState: 'error' },
-          trekDataLoading: false,
-          trekDataError: (err as Error).message,
-          trekLoadProgress: 'Failed to load live data',
-        });
-      }
+      trekLoadProgress: '',
     });
   },
 

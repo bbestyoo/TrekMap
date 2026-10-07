@@ -51,5 +51,39 @@ export const northAnnapurnaBaseCamp: Trek = {
   dataSource: 'OpenStreetMap contributors, SRTM DEM (NASA/USGS)',
   isVerified: true,
   isDemoData: false,
-
+  dataState: 'loaded',
+  waypoints: [
+    { id: 'tatopani-nabc', name: 'Tatopani', lat: 28.4965, lng: 83.6552, elevation: 1190, type: 'start', distanceFromStart: 0 },
+    { id: 'dana', name: 'Dana', lat: 28.5385, lng: 83.6420, elevation: 1400, type: 'village', distanceFromStart: 6 },
+    { id: 'gadpar', name: 'Gadpar', lat: 28.5720, lng: 83.6210, elevation: 1950, type: 'village', distanceFromStart: 14 },
+    { id: 'hum-khola', name: 'Hum Khola', lat: 28.6010, lng: 83.6450, elevation: 2800, type: 'camp', distanceFromStart: 23 },
+    { id: 'guhe-khola', name: 'Guhe Khola Camp', lat: 28.6280, lng: 83.6680, elevation: 3350, type: 'camp', distanceFromStart: 31 },
+    { id: 'miristi-khola', name: 'Miristi Khola High Camp', lat: 28.6520, lng: 83.6950, elevation: 3850, type: 'camp', distanceFromStart: 38 },
+    { id: 'nabc', name: 'North Annapurna Base Camp', lat: 28.6850, lng: 83.7220, elevation: 4200, type: 'finish', distanceFromStart: 44 },
+  ],
+  routeGeoJSON: {
+    type: 'Feature',
+    properties: { id: 'nabc', name: 'North Annapurna Base Camp Trail' },
+    geometry: {
+      type: 'LineString',
+      coordinates: [
+        [83.6552, 28.4965],
+        [83.6420, 28.5385],
+        [83.6210, 28.5720],
+        [83.6450, 28.6010],
+        [83.6680, 28.6280],
+        [83.6950, 28.6520],
+        [83.7220, 28.6850],
+      ],
+    },
+  },
+  elevationProfile: [
+    { distance: 0, elevation: 1190, waypointId: 'tatopani-nabc' },
+    { distance: 6, elevation: 1400, waypointId: 'dana' },
+    { distance: 14, elevation: 1950, waypointId: 'gadpar' },
+    { distance: 23, elevation: 2800, waypointId: 'hum-khola' },
+    { distance: 31, elevation: 3350, waypointId: 'guhe-khola' },
+    { distance: 38, elevation: 3850, waypointId: 'miristi-khola' },
+    { distance: 44, elevation: 4200, waypointId: 'nabc' },
+  ],
 };
