@@ -16,6 +16,7 @@
 import type { Trek } from '../../types';
 
 export const everestBaseCamp: Trek = {
+  
   osmRelationId: 1189003,
   id: 'ebc',
   slug: 'everest-base-camp',
