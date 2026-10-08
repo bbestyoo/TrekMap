@@ -6,9 +6,19 @@
  * • Stars + globe atmosphere glow handled in CSS over this component.
  */
 
+
+
 import { useEffect, useRef, useCallback } from 'react';
 import { Map, Popup } from 'maplibre-gl';
+import * as maplibregl from 'maplibre-gl';   // ✅ namespace import
+import maplibreWorkerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url';
 import 'maplibre-gl/dist/maplibre-gl.css';
+
+// Register MapLibre's worker URL at module load.
+// Required for production builds (Vite/Vercel) — without it, tiles fail
+// silently because the worker can't resolve its shared chunk.
+maplibregl.setWorkerUrl(maplibreWorkerUrl);
+
 import { createRoot } from 'react-dom/client';
 import { useAppStore } from '../../store/useAppStore';
 import { MapService } from '../../services/map/mapService';

@@ -1,12 +1,4 @@
-/**
- * MapLibre GL JS configuration and style definitions.
- * Uses MapLibre GL JS v4+ named exports exclusively.
- *
- * Attribution:
- *   - Basemap tiles: © OpenStreetMap contributors, © OpenMapTiles / OpenFreeMap
- *   - DEM: © Mapzen / Amazon Web Services Terrain Tiles (public domain)
- *   - Trek data: OpenStreetMap contributors (ODbL)
- */
+
 
 import { type MapOptions } from 'maplibre-gl';
 
