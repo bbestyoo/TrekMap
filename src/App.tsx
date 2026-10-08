@@ -84,7 +84,7 @@ export default function App() {
           </svg>
           <div className="logo-text">
             <span className="logo-title">Trek Explorer</span>
-            <span className="logo-subtitle">Nepal 3D Topography</span>
+            <span className="logo-subtitle">Made by Bibesh</span>
           </div>
         </div>
 
