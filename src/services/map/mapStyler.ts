@@ -317,4 +317,60 @@ export function addNepalLabels(map: Map): void {
       'text-halo-width': 1.8,
     },
   });
+
+  // ── Custom Snow Caps (Himalayan Summits > 6,000m) ─────────────────────────
+  if (!map.getSource('himalaya-snow-peaks')) {
+    const peakSnowFeatures = [
+      { coords: [86.9250, 27.9881], name: 'Everest', radius: 1800 },
+      { coords: [86.9333, 27.9617], name: 'Lhotse', radius: 1400 },
+      { coords: [86.9167, 27.9997], name: 'Nuptse', radius: 1200 },
+      { coords: [86.8600, 27.8611], name: 'Ama Dablam', radius: 1200 },
+      { coords: [86.6608, 28.0942], name: 'Cho Oyu', radius: 1500 },
+      { coords: [87.0889, 27.8903], name: 'Makalu', radius: 1600 },
+      { coords: [88.1475, 27.7025], name: 'Kangchenjunga', radius: 2000 },
+      { coords: [83.8203, 28.5972], name: 'Annapurna I', radius: 1600 },
+      { coords: [83.8770, 28.5340], name: 'Annapurna South', radius: 1400 },
+      { coords: [83.9730, 28.4990], name: 'Machhapuchhre', radius: 1300 },
+      { coords: [83.4880, 28.6980], name: 'Dhaulagiri', radius: 1800 },
+      { coords: [84.5600, 28.5500], name: 'Manaslu', radius: 1700 },
+      { coords: [84.6000, 28.5000], name: 'Himalchuli', radius: 1400 },
+      { coords: [85.6700, 28.2500], name: 'Langtang Lirung', radius: 1300 },
+      { coords: [85.7800, 27.9620], name: 'Dorje Lakpa', radius: 1300 },
+    ].map((p) => ({
+      type: 'Feature' as const,
+      geometry: { type: 'Point' as const, coordinates: p.coords as [number, number] },
+      properties: { name: p.name, radius: p.radius },
+    }));
+
+    map.addSource('himalaya-snow-peaks', {
+      type: 'geojson',
+      data: { type: 'FeatureCollection', features: peakSnowFeatures },
+    });
+
+    map.addLayer({
+      id: 'himalaya-snow-glow',
+      type: 'circle',
+      source: 'himalaya-snow-peaks',
+      paint: {
+        'circle-radius': ['interpolate', ['linear'], ['zoom'], 6, 8, 12, 36],
+        'circle-color': '#f8fafc',
+        'circle-opacity': 0.85,
+        'circle-blur': 0.8,
+      },
+    });
+
+    map.addLayer({
+      id: 'himalaya-snow-core',
+      type: 'circle',
+      source: 'himalaya-snow-peaks',
+      paint: {
+        'circle-radius': ['interpolate', ['linear'], ['zoom'], 6, 3, 12, 16],
+        'circle-color': '#ffffff',
+        'circle-opacity': 0.95,
+        'circle-stroke-color': '#e2e8f0',
+        'circle-stroke-width': 1,
+      },
+    });
+  }
 }
+

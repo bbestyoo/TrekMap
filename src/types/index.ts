@@ -34,6 +34,7 @@ export interface Waypoint {
   elevation: number; // metres
   type: WaypointType;
   description?: string;
+  photo?: string;
   distanceFromStart?: number; // km
 }
 
@@ -43,6 +44,9 @@ export interface ElevationPoint {
   distance: number;   // km from start
   elevation: number;  // metres
   waypointId?: string;
+  lat?: number;
+  lng?: number;
+  gradient?: number;  // slope percentage or change
 }
 
 // ─── Trek loading state ───────────────────────────────────────────────────────

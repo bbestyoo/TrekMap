@@ -1,9 +1,11 @@
+import { useState } from 'react';
 import {
   X, Heart, TrendingUp, Clock, Route,
   Mountain, MapPin, Flag, Loader, AlertCircle,
+  Footprints, Share2, Layers, Filter, Eye, EyeOff, Sparkles,
 } from 'lucide-react';
 import { useAppStore } from '../../store/useAppStore';
-import type { Difficulty } from '../../types';
+import type { Difficulty, Waypoint, WaypointType } from '../../types';
 import type { MapService } from '../../services/map/mapService';
 import { getTrekCoverImage } from '../../utils/trekImages';
 import clsx from 'clsx';
@@ -22,22 +24,55 @@ const DIFFICULTY_CONFIG: Record<Difficulty, { color: string; label: string }> = 
 };
 
 export default function TrekInfoPanel({ mapService }: Props) {
-  const selectedTrek     = useAppStore((s) => s.selectedTrek);
-  const selectTrek       = useAppStore((s) => s.selectTrek);
-  const sidebarOpen      = useAppStore((s) => s.sidebarOpen);
-  const setSidebarOpen   = useAppStore((s) => s.setSidebarOpen);
-  const trekDataLoading  = useAppStore((s) => s.trekDataLoading);
-  const trekLoadProgress = useAppStore((s) => s.trekLoadProgress);
-  const trekDataError    = useAppStore((s) => s.trekDataError);
+  const selectedTrek          = useAppStore((s) => s.selectedTrek);
+  const selectTrek            = useAppStore((s) => s.selectTrek);
+  const sidebarOpen           = useAppStore((s) => s.sidebarOpen);
+  const setSidebarOpen        = useAppStore((s) => s.setSidebarOpen);
+  const setActiveWaypoint     = useAppStore((s) => s.setActiveWaypoint);
+  const setIsCompareOpen      = useAppStore((s) => s.setIsCompareOpen);
+  const startVirtualHike      = useAppStore((s) => s.startVirtualHike);
+  const isHikePlaying         = useAppStore((s) => s.isHikePlaying);
+  const showWaypointsOnMap    = useAppStore((s) => s.showWaypointsOnMap);
+  const setShowWaypointsOnMap = useAppStore((s) => s.setShowWaypointsOnMap);
+  const hoveredWaypointId     = useAppStore((s) => s.hoveredWaypointId);
+  const setHoveredWaypoint    = useAppStore((s) => s.setHoveredWaypoint);
+
+  const [activeTab, setActiveTab] = useState<'overview' | 'waypoints' | 'altitudes'>('overview');
+  const [copiedUrl, setCopiedUrl] = useState(false);
+  const [selectedFilter, setSelectedFilter] = useState<WaypointType | 'all'>('all');
 
   if (!selectedTrek || !sidebarOpen) return null;
 
   const diff    = DIFFICULTY_CONFIG[selectedTrek.difficulty];
-  const loading = trekDataLoading || selectedTrek.dataState === 'loading';
-  const errored = selectedTrek.dataState === 'error';
+  const loading = selectedTrek.dataState === 'loading';
 
   const handleFlyTo = () => mapService?.flyToTrek(selectedTrek);
   const handleClose = () => { setSidebarOpen(false); selectTrek(null); };
+
+  const handleShare = () => {
+    const url = window.location.href;
+    navigator.clipboard.writeText(url);
+    setCopiedUrl(true);
+    setTimeout(() => setCopiedUrl(false), 2200);
+  };
+
+  const handleWaypointClick = (wp: Waypoint) => {
+    setActiveWaypoint(wp);
+    if (mapService) {
+      mapService.flyToCoordinates(wp.lng, wp.lat, 14, 55);
+    }
+  };
+
+  // Waypoint filtering
+  const allWaypoints = selectedTrek.waypoints || [];
+  const filteredWaypoints = allWaypoints.filter(
+    (wp) => selectedFilter === 'all' || wp.type === selectedFilter
+  );
+
+  // Top 5 Highest Points
+  const topAltitudePoints = [...allWaypoints]
+    .sort((a, b) => b.elevation - a.elevation)
+    .slice(0, 5);
 
   return (
     <aside className="trek-info-panel" aria-label="Trek information">
@@ -57,13 +92,25 @@ export default function TrekInfoPanel({ mapService }: Props) {
         <div className="tip-image-gradient" />
         <div className="tip-region-badge">{selectedTrek.region}</div>
 
-        {/* Loading overlay on the image */}
-        {loading && (
-          <div className="tip-loading-overlay" role="status" aria-live="polite">
-            <Loader size={20} className="spin" />
-            <span>{trekLoadProgress || 'Loading trail data…'}</span>
-          </div>
-        )}
+        {/* Action icons on image */}
+        <div className="tip-image-actions">
+          <button
+            className="tip-action-pill"
+            onClick={handleShare}
+            title="Copy shareable link for this trek"
+          >
+            <Share2 size={13} />
+            <span>{copiedUrl ? 'Copied!' : 'Share'}</span>
+          </button>
+          <button
+            className="tip-action-pill"
+            onClick={() => setIsCompareOpen(true)}
+            title="Compare with another trek"
+          >
+            <Layers size={13} />
+            <span>Compare</span>
+          </button>
+        </div>
       </div>
 
       <div className="tip-content">
@@ -74,215 +121,249 @@ export default function TrekInfoPanel({ mapService }: Props) {
             <span className="tip-icon">🥾</span>
             {selectedTrek.name}
           </h2>
-          <button className="tip-fav" aria-label="Add to favourites">
-            <Heart size={16} />
+          <button
+            className={`tip-hike-trigger-btn ${isHikePlaying ? 'active' : ''}`}
+            onClick={startVirtualHike}
+            title="Start interactive 3D virtual hike"
+          >
+            <Footprints size={14} />
+            <span>{isHikePlaying ? 'Hike Live' : 'Virtual Hike'}</span>
           </button>
         </div>
 
-        <p className="tip-description">{selectedTrek.description}</p>
-
-        {/* ── Error banner ─────────────────────────────────────────────── */}
-        {errored && (
-          <div className="tip-error-banner" role="alert">
-            <AlertCircle size={14} />
-            <span>
-              Could not load live trail data — showing estimates.
-              {trekDataError ? ` (${trekDataError})` : ''}
-            </span>
-          </div>
-        )}
-
-        {/* ── Data source pill ─────────────────────────────────────────── */}
-        {!loading && !errored && (
-          <div className="tip-source-pill">
-            <span className="source-dot" />
-            OSM · SRTM live data
-          </div>
-        )}
-        {loading && (
-          <div className="tip-source-pill tip-source-loading">
-            <Loader size={10} className="spin" />
-            {trekLoadProgress || 'Fetching…'}
-          </div>
-        )}
-
-        {/* ── Stats grid ───────────────────────────────────────────────── */}
-        <div className="tip-stats-grid">
-          <StatCard
-            icon={<Mountain size={16} />}
-            label="Max Elevation"
-            value={`${selectedTrek.stats.maxElevationM.toLocaleString()} m`}
-            shimmer={loading}
-          />
-          <StatCard
-            icon={<Route size={16} />}
-            label="Total Distance"
-            value={`${selectedTrek.stats.distanceKm} km`}
-            shimmer={loading}
-          />
-          <StatCard
-            icon={<Clock size={16} />}
-            label="Duration"
-            value={`${selectedTrek.stats.durationDays.min}–${selectedTrek.stats.durationDays.max} days`}
-            shimmer={false}
-          />
-          <StatCard
-            icon={
-              <span className="diff-dots" style={{ color: diff.color }}>
-                {diff.label}
-              </span>
-            }
-            label="Difficulty"
-            value={selectedTrek.difficulty}
-            valueStyle={{ color: diff.color }}
-            shimmer={false}
-          />
+        {/* ── Tabs: Overview, Waypoints, Altitude Rankings ─────────────── */}
+        <div className="tip-tabs-bar" role="tablist">
+          <button
+            className={clsx('tip-tab', activeTab === 'overview' && 'active')}
+            onClick={() => setActiveTab('overview')}
+            role="tab"
+          >
+            Overview
+          </button>
+          <button
+            className={clsx('tip-tab', activeTab === 'waypoints' && 'active')}
+            onClick={() => setActiveTab('waypoints')}
+            role="tab"
+          >
+            Waypoints ({allWaypoints.length})
+          </button>
+          <button
+            className={clsx('tip-tab', activeTab === 'altitudes' && 'active')}
+            onClick={() => setActiveTab('altitudes')}
+            role="tab"
+          >
+            Highest Summits
+          </button>
         </div>
 
-        {/* ── Elevation row ────────────────────────────────────────────── */}
-        <div className="tip-elev-row">
-          <ElevItem
-            icon={<TrendingUp size={14} className="elev-icon up" />}
-            label="Gain"
-            value={`+${selectedTrek.stats.elevationGainM.toLocaleString()} m`}
-            shimmer={loading}
-          />
-          <ElevItem
-            icon={<TrendingUp size={14} className="elev-icon down" />}
-            label="Loss"
-            value={`−${selectedTrek.stats.elevationLossM.toLocaleString()} m`}
-            shimmer={loading}
-          />
-          {selectedTrek.stats.highestPassName && (
-            <ElevItem
-              icon={<Flag size={14} className="elev-icon" />}
-              label={selectedTrek.stats.highestPassName}
-              value={`${selectedTrek.stats.highestPassM?.toLocaleString()} m`}
-              shimmer={false}
-            />
-          )}
-        </div>
+        {/* ──────────────── TAB 1: OVERVIEW ─────────────────────────── */}
+        {activeTab === 'overview' && (
+          <div className="tip-tab-pane">
+            <p className="tip-description">{selectedTrek.description}</p>
 
-        {/* ── Route ───────────────────────────────────────────────────── */}
-        <div className="tip-route-row">
-          <MapPin size={13} className="route-icon start" />
-          <span className="route-start">{selectedTrek.startPoint}</span>
-          <span className="route-arrow">→</span>
-          <span className="route-end">{selectedTrek.endPoint}</span>
-        </div>
-
-        {/* ── Highlights ───────────────────────────────────────────────── */}
-        <div className="tip-section">
-          <h3 className="tip-section-title">Route Highlights</h3>
-          <ul className="tip-highlights">
-            {selectedTrek.highlights.map((h, i) => (
-              <li key={i} className="tip-highlight-item">
-                <span className="highlight-dot" />
-                {h}
-              </li>
-            ))}
-          </ul>
-        </div>
-
-        {/* ── Waypoints ────────────────────────────────────────────────── */}
-        <div className="tip-section">
-          <h3 className="tip-section-title">Key Waypoints</h3>
-          {loading ? (
-            <div className="tip-waypoints-loading">
-              <Loader size={13} className="spin" />
-              <span>Loading waypoints from OSM…</span>
+            {/* ── Stats grid ────────────────────────────────────────────── */}
+            <div className="tip-stats-grid">
+              <StatItem
+                icon={<Clock size={16} className="stat-icon" />}
+                label="Duration"
+                value={`${selectedTrek.stats.durationDays.min}–${selectedTrek.stats.durationDays.max} days`}
+              />
+              <StatItem
+                icon={<Route size={16} className="stat-icon" />}
+                label="Distance"
+                value={`${selectedTrek.stats.distanceKm} km`}
+              />
+              <StatItem
+                icon={<Mountain size={16} className="stat-icon" />}
+                label="Max Altitude"
+                value={`${selectedTrek.stats.maxElevationM.toLocaleString()} m`}
+              />
+              <StatItem
+                icon={<span className="stat-icon-diff" style={{ color: diff.color }}>{diff.label}</span>}
+                label="Difficulty"
+                value={selectedTrek.difficulty}
+              />
             </div>
-          ) : !selectedTrek.waypoints || selectedTrek.waypoints.length === 0 ? (
-            <p className="tip-no-data">No waypoints available for this route.</p>
-          ) : (
-            <div className="tip-waypoints">
-              {selectedTrek.waypoints.slice(0, 6).map((wp, i) => (
-                <div key={wp.id} className="tip-wp-item">
-                  <div className="wp-connector">
-                    <div className={clsx('wp-dot', `type-${wp.type}`)} />
-                    {i < Math.min(5, (selectedTrek.waypoints?.length ?? 0) - 1) && (
-                      <div className="wp-line" />
-                    )}
+
+            {/* ── Elevation row ────────────────────────────────────────── */}
+            <div className="tip-elev-row">
+              <ElevItem
+                icon={<TrendingUp size={14} className="elev-icon up" />}
+                label="Ascent Gain"
+                value={`+${selectedTrek.stats.elevationGainM.toLocaleString()} m`}
+              />
+              <ElevItem
+                icon={<TrendingUp size={14} className="elev-icon down" />}
+                label="Descent"
+                value={`−${selectedTrek.stats.elevationLossM.toLocaleString()} m`}
+              />
+              {selectedTrek.stats.highestPassName && (
+                <ElevItem
+                  icon={<Flag size={14} className="elev-icon" />}
+                  label={selectedTrek.stats.highestPassName}
+                  value={`${selectedTrek.stats.highestPassM?.toLocaleString()} m`}
+                />
+              )}
+            </div>
+
+            {/* ── Route ────────────────────────────────────────────────── */}
+            <div className="tip-route-row">
+              <MapPin size={13} className="route-icon start" />
+              <span className="route-start">{selectedTrek.startPoint}</span>
+              <span className="route-arrow">➔</span>
+              <span className="route-end">{selectedTrek.endPoint}</span>
+            </div>
+
+            {/* ── Highlights ────────────────────────────────────────────── */}
+            <div className="tip-section">
+              <h3 className="tip-section-title">Trail Highlights</h3>
+              <ul className="tip-highlights">
+                {selectedTrek.highlights.map((h, i) => (
+                  <li key={i} className="tip-highlight-item">
+                    <Sparkles size={13} className="text-emerald-400 shrink-0" />
+                    <span>{h}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        )}
+
+        {/* ──────────────── TAB 2: WAYPOINT STORYTELLING & FILTERS ───── */}
+        {activeTab === 'waypoints' && (
+          <div className="tip-tab-pane">
+            <div className="tip-wp-controls-row">
+              {/* Type Filter Chips */}
+              <div className="tip-wp-filter-chips">
+                {(['all', 'village', 'landmark', 'viewpoint', 'pass', 'camp', 'checkpoint'] as const).map((filter) => (
+                  <button
+                    key={filter}
+                    className={clsx('wp-filter-btn', selectedFilter === filter && 'active')}
+                    onClick={() => setSelectedFilter(filter)}
+                  >
+                    {filter}
+                  </button>
+                ))}
+              </div>
+
+              {/* Toggle visibility */}
+              <button
+                className="tip-wp-toggle-visibility"
+                onClick={() => setShowWaypointsOnMap(!showWaypointsOnMap)}
+                title={showWaypointsOnMap ? 'Hide waypoints on map' : 'Show waypoints on map'}
+              >
+                {showWaypointsOnMap ? <Eye size={14} /> : <EyeOff size={14} />}
+                <span>{showWaypointsOnMap ? 'Map Dots On' : 'Map Dots Off'}</span>
+              </button>
+            </div>
+
+            <div className="tip-interactive-wp-list">
+              {filteredWaypoints.map((wp) => {
+                const isHovered = hoveredWaypointId === wp.id;
+                return (
+                  <div
+                    key={wp.id}
+                    className={clsx('tip-wp-card', isHovered && 'hovered')}
+                    onClick={() => handleWaypointClick(wp)}
+                    onMouseEnter={() => setHoveredWaypoint(wp.id)}
+                    onMouseLeave={() => setHoveredWaypoint(null)}
+                  >
+                    <div className="wp-card-left">
+                      <div className={clsx('wp-dot-ring', `type-${wp.type}`)} />
+                      <div className="wp-card-meta">
+                        <div className="wp-card-title-row">
+                          <span className="wp-card-name">{wp.name}</span>
+                          <span className="wp-card-type-tag">{wp.type}</span>
+                        </div>
+                        {wp.distanceFromStart !== undefined && (
+                          <span className="wp-card-sub">
+                            📍 {wp.distanceFromStart} km from start
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="wp-card-right">
+                      <span className="wp-card-elev">{wp.elevation.toLocaleString()} m</span>
+                    </div>
                   </div>
-                  <div className="wp-info">
-                    <span className="wp-info-name">{wp.name}</span>
-                    <span className="wp-info-elev">
-                      {wp.elevation > 0 ? `${wp.elevation.toLocaleString()} m` : '—'}
-                    </span>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* ──────────────── TAB 3: ALTITUDE RANKINGS ────────────────── */}
+        {activeTab === 'altitudes' && (
+          <div className="tip-tab-pane">
+            <p className="tip-pane-subtext">
+              The 5 highest peaks, passes, and high-altitude shelters on this expedition:
+            </p>
+            <div className="tip-altitude-ranks">
+              {topAltitudePoints.map((wp, index) => (
+                <div
+                  key={wp.id}
+                  className="tip-rank-item"
+                  onClick={() => handleWaypointClick(wp)}
+                >
+                  <div className="rank-num">#{index + 1}</div>
+                  <div className="rank-details">
+                    <span className="rank-name">{wp.name}</span>
+                    <span className="rank-type">{wp.type.toUpperCase()}</span>
+                  </div>
+                  <div className="rank-elev">
+                    <Mountain size={14} className="text-emerald-400" />
+                    <span>{wp.elevation.toLocaleString()} m</span>
                   </div>
                 </div>
               ))}
-              {(selectedTrek.waypoints?.length ?? 0) > 6 && (
-                <div className="tip-more-wps">
-                  +{(selectedTrek.waypoints?.length ?? 0) - 6} more waypoints
-                </div>
-              )}
             </div>
-          )}
-        </div>
+          </div>
+        )}
 
-        {/* ── CTA ──────────────────────────────────────────────────────── */}
-        <button
-          className="tip-fly-btn"
-          onClick={handleFlyTo}
-          disabled={loading && !selectedTrek.routeGeoJSON}
-          aria-label={`Fly camera to ${selectedTrek.name}`}
-        >
-          <MapPin size={15} />
-          {loading && !selectedTrek.routeGeoJSON
-            ? 'Loading route…'
-            : 'View Trail on Map'}
-        </button>
-
-        {/* ── Attribution ──────────────────────────────────────────────── */}
-        <div className="tip-attribution">
-          <span>{selectedTrek.dataSource}</span>
-          {selectedTrek.isDemoData && !loading && (
-            <span className="demo-badge"> · estimates</span>
-          )}
+        {/* ── CTA View on map ──────────────────────────────────────── */}
+        <div className="tip-footer-actions">
+          <button
+            className="tip-fly-btn"
+            onClick={handleFlyTo}
+            aria-label={`Frame camera to ${selectedTrek.name}`}
+          >
+            <MapPin size={15} />
+            <span>Fit Camera to Route</span>
+          </button>
         </div>
       </div>
     </aside>
   );
 }
 
-/* ── Sub-components ────────────────────────────────────────────────────────── */
-
-interface StatCardProps {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-  valueStyle?: React.CSSProperties;
-  shimmer?: boolean;
-}
-
-function StatCard({ icon, label, value, valueStyle, shimmer }: StatCardProps) {
+function StatItem({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
   return (
-    <div className="stat-card">
-      <div className="stat-card-icon">{icon}</div>
-      <div className="stat-card-body">
-        <div className="stat-card-label">{label}</div>
-        <div className={clsx('stat-card-value', shimmer && 'shimmer-text')} style={valueStyle}>
-          {value}
-        </div>
+    <div className="stat-item">
+      {icon}
+      <div className="stat-text">
+        <span className="stat-label">{label}</span>
+        <span className="stat-value">{value}</span>
       </div>
     </div>
   );
 }
 
-interface ElevItemProps {
+function ElevItem({
+  icon,
+  label,
+  value,
+}: {
   icon: React.ReactNode;
   label: string;
   value: string;
-  shimmer?: boolean;
-}
-
-function ElevItem({ icon, label, value, shimmer }: ElevItemProps) {
+}) {
   return (
-    <div className="tip-elev-item">
+    <div className="elev-item">
       {icon}
-      <span className="elev-label">{label}</span>
-      <span className={clsx('elev-value', shimmer && 'shimmer-text')}>{value}</span>
+      <div className="elev-text">
+        <span className="elev-label">{label}</span>
+        <span className="elev-value">{value}</span>
+      </div>
     </div>
   );
 }

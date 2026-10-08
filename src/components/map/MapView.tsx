@@ -51,14 +51,18 @@ export default function MapView({ onMapReady, onMapInstance }: MapViewProps) {
   const terrainEnabled     = useAppStore((s) => s.terrainEnabled);
   const mapMode            = useAppStore((s) => s.mapMode);
 
-  // Hide stars when terrain is active (zoomed into Nepal mountains)
-  useStars(terrainEnabled);
+  const showWaypointsOnMap = useAppStore((s) => s.showWaypointsOnMap);
+  const waypointFilter     = useAppStore((s) => s.waypointFilter);
+  const setActiveWaypoint  = useAppStore((s) => s.setActiveWaypoint);
 
-  // ─── Waypoint click → popup ───────────────────────────────────────────────
+  // ─── Waypoint click → Open Story Card + Popup ────────────────────────────
   const handleWaypointClick = useCallback((wp: Waypoint) => {
     const map     = mapRef.current;
     const service = serviceRef.current;
     if (!map || !service) return;
+
+    // Trigger storytelling modal
+    setActiveWaypoint(wp);
 
     const container = document.createElement('div');
     createRoot(container).render(<WaypointPopup waypoint={wp} />);
@@ -75,7 +79,7 @@ export default function MapView({ onMapReady, onMapInstance }: MapViewProps) {
       .addTo(map);
 
     service.setActivePopup(popup);
-  }, []);
+  }, [setActiveWaypoint]);
 
   // ─── Map init ─────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -192,7 +196,13 @@ export default function MapView({ onMapReady, onMapInstance }: MapViewProps) {
         service.showTrekRoute(selectedTrek);
       }
       if (selectedTrek.waypoints && selectedTrek.waypoints.length > 0) {
-        service.showWaypoints(selectedTrek, handleWaypointClick, setHoveredWaypoint);
+        service.showWaypoints(
+          selectedTrek,
+          handleWaypointClick,
+          setHoveredWaypoint,
+          waypointFilter,
+          showWaypointsOnMap
+        );
       }
       // Only re-fly if this is a fresh trek selection, not a data update
       if (!activeRouteRef.current?.startsWith(selectedTrek.id)) {
@@ -203,7 +213,7 @@ export default function MapView({ onMapReady, onMapInstance }: MapViewProps) {
 
     if (map.isStyleLoaded()) apply();
     else map.once('styledata', apply);
-  }, [selectedTrek, selectedTrek?.dataState, handleWaypointClick, setHoveredWaypoint]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [selectedTrek, selectedTrek?.dataState, handleWaypointClick, setHoveredWaypoint, waypointFilter, showWaypointsOnMap]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     serviceRef.current?.highlightWaypoint(hoveredWaypointId);

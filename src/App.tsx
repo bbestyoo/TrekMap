@@ -1,9 +1,8 @@
 /**
- * App — root component.
- * Uses MapLibre GL JS v4+ named exports exclusively.
+ * App — root component with cinematic intro, shareable URLs, virtual hike, compare mode, and hero elevation profile.
  */
 
-import { useRef, useState, useCallback } from 'react';
+import { useRef, useState, useCallback, useEffect } from 'react';
 import { type Map } from 'maplibre-gl';
 import clsx from 'clsx';
 import MapView from './components/map/MapView';
@@ -12,8 +11,13 @@ import SearchBar from './components/search/SearchBar';
 import TrekSelector from './components/trek/TrekSelector';
 import TrekInfoPanel from './components/trek/TrekInfoPanel';
 import ElevationProfile from './components/trek/ElevationProfile';
+import VirtualHikeControl from './components/trek/VirtualHikeControl';
+import TrekComparison from './components/trek/TrekComparison';
+import WaypointStoryModal from './components/trek/WaypointStoryModal';
+import CinematicIntro from './components/ui/CinematicIntro';
 import AttributionBar from './components/ui/AttributionBar';
 import { useAppStore } from './store/useAppStore';
+import { getTrekById, getTrekBySlug } from './data/treks/trekRegistry';
 import type { MapService } from './services/map/mapService';
 
 export default function App() {
@@ -24,6 +28,7 @@ export default function App() {
   const trekSelectorOpen = useAppStore((s) => s.trekSelectorOpen);
   const sidebarOpen = useAppStore((s) => s.sidebarOpen);
   const selectedTrek = useAppStore((s) => s.selectedTrek);
+  const selectTrek = useAppStore((s) => s.selectTrek);
   const hasRightPanel = Boolean(sidebarOpen && selectedTrek);
 
   const handleMapReady = useCallback((service: MapService) => {
@@ -35,9 +40,35 @@ export default function App() {
     mapInstanceRef.current = map;
   }, []);
 
+  // ── Shareable URL Loader: /?trek=everest-base-camp or /trek/ebc ──────────
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const trekParam = params.get('trek');
+    
+    // Also check pathname like /trek/everest-base-camp
+    const pathMatch = window.location.pathname.match(/\/trek\/([a-zA-Z0-9_-]+)/);
+    const targetSlugOrId = trekParam || (pathMatch ? pathMatch[1] : null);
+
+    if (targetSlugOrId) {
+      const found = getTrekBySlug(targetSlugOrId) || getTrekById(targetSlugOrId);
+      if (found) {
+        selectTrek(found.id);
+      }
+    }
+  }, [selectTrek]);
+
   return (
     <div className="app-shell">
-      {/* Persistent map layer */}
+      {/* Cinematic Intro Overlay */}
+      <CinematicIntro
+        onIntroComplete={() => {
+          if (mapServiceRef.current && !selectedTrek) {
+            mapServiceRef.current.flyToNepal();
+          }
+        }}
+      />
+
+      {/* Persistent 3D Map View */}
       <MapView
         onMapReady={handleMapReady}
         onMapInstance={handleMapInstance}
@@ -53,7 +84,7 @@ export default function App() {
           </svg>
           <div className="logo-text">
             <span className="logo-title">Trek Explorer</span>
-            <span className="logo-subtitle">Made by Bibesh </span>
+            <span className="logo-subtitle">Nepal 3D Topography</span>
           </div>
         </div>
 
@@ -80,7 +111,25 @@ export default function App() {
         <TrekInfoPanel mapService={mapReady ? mapServiceRef.current : null} />
       </div>
 
-      {/* Bottom panel — Elevation profile */}
+      {/* Floating Virtual Hike Controller (when trek is active) */}
+      {selectedTrek && (
+        <div
+          className={clsx(
+            'virtual-hike-wrapper',
+            hasRightPanel && 'with-right-panel'
+          )}
+        >
+          <VirtualHikeControl mapService={mapReady ? mapServiceRef.current : null} />
+        </div>
+      )}
+
+      {/* Waypoint Storytelling Card Drawer */}
+      <WaypointStoryModal mapService={mapReady ? mapServiceRef.current : null} />
+
+      {/* Trek Comparison Modal */}
+      <TrekComparison />
+
+      {/* Bottom panel — Hero Elevation profile with interactive sync */}
       <div
         className={clsx(
           'bottom-panel',
@@ -88,7 +137,7 @@ export default function App() {
           hasRightPanel && 'with-right-panel'
         )}
       >
-        <ElevationProfile />
+        <ElevationProfile mapService={mapReady ? mapServiceRef.current : null} />
       </div>
 
       <AttributionBar />

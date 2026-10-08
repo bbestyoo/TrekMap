@@ -10,13 +10,14 @@ import {
   Map,
   Popup,
   Marker,
+  GeoJSONSource,
   type LngLatBoundsLike,
   type LayerSpecification,
   type GeoJSONSourceSpecification,
   type MapMouseEvent,
   type MapGeoJSONFeature,
 } from 'maplibre-gl';
-import type { Trek, Waypoint } from '../../types';
+import type { Trek, Waypoint, WaypointType } from '../../types';
 import {
   DEM_SOURCE_ID,
   demSourceSpec,
@@ -101,32 +102,48 @@ export class MapService {
     return undefined;
   }
 
-  // ─── Route line ────────────────────────────────────────────────────────────
+  // ─── Route line (Animated drawing) ─────────────────────────────────────────
+
+  private animationFrameId: number | null = null;
+  private hikerMarker: Marker | null = null;
 
   showTrekRoute(trek: Trek): void {
     this.clearRoute();
+    if (!trek.routeGeoJSON || !trek.routeGeoJSON.geometry.coordinates) return;
+
     const sourceId = `route-${trek.id}`;
     const color = getRouteColor(trek.id);
+    const allCoords = trek.routeGeoJSON.geometry.coordinates;
+
+    // Start with initial coordinates slice for animated drawing effect
+    const initialGeoJSON = {
+      type: 'Feature' as const,
+      properties: { id: trek.id, name: trek.name },
+      geometry: {
+        type: 'LineString' as const,
+        coordinates: [allCoords[0], allCoords[1] || allCoords[0]],
+      },
+    };
 
     this.map.addSource(sourceId, {
       type: 'geojson',
-      data: trek.routeGeoJSON as unknown as GeoJSONSourceSpecification['data'],
+      data: initialGeoJSON as unknown as GeoJSONSourceSpecification['data'],
     });
 
-    // Casing for contrast against terrain
+    // Casing for contrast against terrain with glowing blur
     this.map.addLayer({
       id: `route-casing-${trek.id}`,
       type: 'line',
       source: sourceId,
       layout: { 'line-join': 'round', 'line-cap': 'round' },
       paint: {
-        'line-color': 'rgba(0,0,0,0.5)',
-        'line-width': ['interpolate', ['linear'], ['zoom'], 8, 6, 14, 12],
+        'line-color': 'rgba(0,0,0,0.65)',
+        'line-width': ['interpolate', ['linear'], ['zoom'], 8, 7, 14, 14],
         'line-blur': 3,
       },
     });
 
-    // Main route
+    // Main route with vibrant color
     this.map.addLayer({
       id: `route-line-${trek.id}`,
       type: 'line',
@@ -134,15 +151,56 @@ export class MapService {
       layout: { 'line-join': 'round', 'line-cap': 'round' },
       paint: {
         'line-color': color,
-        'line-width': ['interpolate', ['linear'], ['zoom'], 8, 2.5, 14, 5],
+        'line-width': ['interpolate', ['linear'], ['zoom'], 8, 3, 14, 6],
         'line-opacity': 0.95,
       },
     });
 
     this.activeRouteSourceId = sourceId;
+
+    // ── Progressive Trail Draw Animation over 1.6 seconds ───────────────────
+    const totalPoints = allCoords.length;
+    const startTime = performance.now();
+    const duration = 1600; // 1.6s
+
+    const animateDraw = (now: number) => {
+      const elapsed = now - startTime;
+      const progress = Math.min(1, elapsed / duration);
+      
+      // Calculate how many vertices to reveal
+      const count = Math.max(2, Math.floor(progress * totalPoints));
+      const currentCoords = allCoords.slice(0, count);
+
+      const source = this.map.getSource(sourceId) as GeoJSONSource | undefined;
+      if (source && typeof source.setData === 'function') {
+        source.setData({
+          type: 'Feature',
+          properties: { id: trek.id },
+          geometry: {
+            type: 'LineString',
+            coordinates: currentCoords,
+          },
+        });
+      }
+
+      if (progress < 1) {
+        this.animationFrameId = requestAnimationFrame(animateDraw);
+      }
+    };
+
+    if (this.animationFrameId) cancelAnimationFrame(this.animationFrameId);
+    this.animationFrameId = requestAnimationFrame(animateDraw);
   }
 
   clearRoute(): void {
+    if (this.animationFrameId) {
+      cancelAnimationFrame(this.animationFrameId);
+      this.animationFrameId = null;
+    }
+    if (this.hikerMarker) {
+      this.hikerMarker.remove();
+      this.hikerMarker = null;
+    }
     if (!this.activeRouteSourceId) return;
     const trekId = this.activeRouteSourceId.replace('route-', '');
     [`route-casing-${trekId}`, `route-line-${trekId}`].forEach((id) => {
@@ -154,6 +212,35 @@ export class MapService {
     this.activeRouteSourceId = null;
   }
 
+  // ─── Virtual Hiker Position Marker ─────────────────────────────────────────
+
+  updateHikerPosition(lng: number, lat: number): void {
+    if (!this.hikerMarker) {
+      const el = document.createElement('div');
+      el.className = 'virtual-hiker-marker';
+      el.innerHTML = `
+        <div class="hiker-beacon-ring"></div>
+        <div class="hiker-beacon-dot">🥾</div>
+      `;
+      this.hikerMarker = new Marker({ element: el, anchor: 'center' })
+        .setLngLat([lng, lat])
+        .addTo(this.map);
+    } else {
+      this.hikerMarker.setLngLat([lng, lat]);
+    }
+  }
+
+  flyToCoordinates(lng: number, lat: number, zoom = 14, pitch = 50): void {
+    this.map.flyTo({
+      center: [lng, lat],
+      zoom,
+      pitch,
+      bearing: 0,
+      duration: 1600,
+      essential: true,
+    });
+  }
+
   // ─── Waypoints (GeoJSON layers — never drift) ──────────────────────────────
 
   private customMarkers: Marker[] = [];
@@ -161,13 +248,20 @@ export class MapService {
   showWaypoints(
     trek: Trek,
     onWaypointClick: (wp: Waypoint) => void,
-    onWaypointHover: (wpId: string | null) => void
+    onWaypointHover: (wpId: string | null) => void,
+    filterType: WaypointType | 'all' = 'all',
+    visible = true
   ): void {
     this.clearWaypoints();
-    if (!trek.waypoints || trek.waypoints.length === 0) return;
+    if (!visible || !trek.waypoints || trek.waypoints.length === 0) return;
+
+    // Filter by type if specified
+    const filteredWps = trek.waypoints.filter(
+      (wp) => filterType === 'all' || wp.type === filterType
+    );
 
     // Build GeoJSON for intermediate waypoints (excluding start/finish)
-    const features = trek.waypoints
+    const features = filteredWps
       .filter((wp) => wp.type !== 'start' && wp.type !== 'finish')
       .map((wp) => ({
         type: 'Feature' as const,
@@ -189,28 +283,28 @@ export class MapService {
       data: geojson as unknown as GeoJSONSourceSpecification['data'],
     });
 
-    // Outer glow / halo ring
+    // Outer dramatic pulsing glow / halo ring
     this.map.addLayer({
       id: 'waypoints-halo',
       type: 'circle',
       source: WP_SOURCE,
       paint: {
-        'circle-radius': ['interpolate', ['linear'], ['zoom'], 8, 10, 14, 18],
+        'circle-radius': ['interpolate', ['linear'], ['zoom'], 8, 14, 14, 26],
         'circle-color': ['get', 'color'],
-        'circle-opacity': 0.18,
-        'circle-blur': 0.5,
+        'circle-opacity': 0.28,
+        'circle-blur': 0.6,
       },
     });
 
-    // Inner filled circle
+    // Inner filled circle with crisp ring
     this.map.addLayer({
       id: WP_LAYER_CIRCLE,
       type: 'circle',
       source: WP_SOURCE,
       paint: {
-        'circle-radius': ['interpolate', ['linear'], ['zoom'], 8, 5, 14, 10],
+        'circle-radius': ['interpolate', ['linear'], ['zoom'], 8, 6, 14, 11],
         'circle-color': ['get', 'color'],
-        'circle-stroke-color': '#07110d',
+        'circle-stroke-color': '#ffffff',
         'circle-stroke-width': 2,
         'circle-opacity': 0.95,
       },
